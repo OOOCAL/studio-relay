@@ -1,4 +1,4 @@
-// Adobe Bridge host script (ExtendScript, ES3). Loaded into the app by the CEP panel.
+// Studio Relay host script (ExtendScript, ES3). Loaded into the app by the CEP panel.
 
 // Minimal JSON for hosts without a native one.
 if (typeof JSON !== "object") { JSON = {}; }

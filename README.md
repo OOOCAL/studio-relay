@@ -1,26 +1,28 @@
-# adobe-bridge
+# Studio Relay
+
+*(eski adı / formerly: adobe-bridge)*
 
 Claude'un **After Effects, Premiere Pro, Photoshop, Illustrator, InDesign ve Audition**'ı doğrudan yönetmesi için yerel bir MCP sunucusu. Limit yok, abonelik yok; her şey kendi bilgisayarında çalışır.
 
 *English below.*
 
 ```
-Claude (masaüstü / Code) ──stdio──> server.js ──WebSocket 127.0.0.1:8765──> "Adobe Bridge (Claude)" paneli (her programda)
+Claude (masaüstü / Code) ──stdio──> server.js ──WebSocket 127.0.0.1:8765──> "Studio Relay" paneli (her programda)
 ```
 
 ## Kurulum
 
 ### En kolayı: tek dosya (Claude Desktop)
-1. [Releases](../../releases) sayfasından `adobe-bridge-x.y.z.mcpb` dosyasını indir.
+1. [Releases](../../releases) sayfasından `studio-relay-x.y.z.mcpb` dosyasını indir.
 2. Dosyaya çift tıkla (ya da Claude Desktop → Ayarlar → Extensions'a sürükle) ve **Install**'a bas.
 3. Sunucu ilk açılışta paneli Adobe eklenti klasörüne kendisi kurar. **Adobe programlarını bir kez yeniden başlat.**
-4. Programda **Window → Extensions → Adobe Bridge (Claude)**: yeşil nokta = bağlı.
+4. Programda **Window → Extensions → Studio Relay**: yeşil nokta = bağlı.
 
 Node.js gerekmez; Claude Desktop kendi Node'unu kullanır.
 
 ### Elle kurulum (Claude Code ya da Node ile)
 1. Node.js 18+ kurulu olsun: <https://nodejs.org>
-2. Releases'tan `adobe-bridge-x.y.z.zip` indir, aç, klasörde:
+2. Releases'tan `studio-relay-x.y.z.zip` indir, aç, klasörde:
    - **macOS:** `bash install.sh`
    - **Windows:** `powershell -ExecutionPolicy Bypass -File install.ps1`
 3. Claude'u tamamen kapatıp aç, Adobe programlarını yeniden başlat.
@@ -50,9 +52,9 @@ Kaldırmak için: `bash uninstall.sh` / `uninstall.ps1`.
 
 | Ortam değişkeni | Varsayılan | Açıklama |
 |---|---|---|
-| `ADOBE_BRIDGE_PORT` | `8765` | WebSocket portu (panelde `main.js` içindeki `PORT` da değişmeli) |
-| `ADOBE_BRIDGE_WAIT_MS` | `45000` | Bir çağrının sonuç için beklediği süre |
-| `ADOBE_BRIDGE_NO_PANEL_INSTALL` | – | Doluysa sunucu paneli kurmaz/güncellemez |
+| `STUDIO_RELAY_PORT` | `8765` | WebSocket portu (panelde `main.js` içindeki `PORT` da değişmeli) |
+| `STUDIO_RELAY_WAIT_MS` | `45000` | Bir çağrının sonuç için beklediği süre |
+| `STUDIO_RELAY_NO_PANEL_INSTALL` | – | Doluysa sunucu paneli kurmaz/güncellemez |
 
 ## Geliştirme
 
@@ -74,9 +76,9 @@ Sunucu yalnızca `127.0.0.1` üzerinde dinler; ağdan erişilemez. Panel, Claude
 
 A local MCP server that lets Claude drive **After Effects, Premiere Pro, Photoshop, Illustrator, InDesign and Audition** through a small CEP panel in each app.
 
-**Install (Claude Desktop):** download `adobe-bridge-x.y.z.mcpb` from Releases, double-click it, click Install. On first start the server installs the panel into your Adobe CEP extensions folder; restart your Adobe apps once, then open **Window → Extensions → Adobe Bridge (Claude)** (green dot = connected).
+**Install (Claude Desktop):** download `studio-relay-x.y.z.mcpb` from Releases, double-click it, click Install. On first start the server installs the panel into your Adobe CEP extensions folder; restart your Adobe apps once, then open **Window → Extensions → Studio Relay** (green dot = connected).
 
-**Install (manual / Claude Code):** Node.js 18+, unzip `adobe-bridge-x.y.z.zip`, run `bash install.sh` (macOS) or `install.ps1` (Windows).
+**Install (manual / Claude Code):** Node.js 18+, unzip `studio-relay-x.y.z.zip`, run `bash install.sh` (macOS) or `install.ps1` (Windows).
 
 **Tools:** `list_apps`, `app_state`, `run_script`, `job_result`, `export_frame`.
 

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = process.env.TEST_PORT || "8799";
-const env = { ...process.env, ADOBE_BRIDGE_PORT: PORT, ADOBE_BRIDGE_WAIT_MS: "1500", ADOBE_BRIDGE_NO_PANEL_INSTALL: "1" };
+const env = { ...process.env, STUDIO_RELAY_PORT: PORT, STUDIO_RELAY_WAIT_MS: "1500", STUDIO_RELAY_NO_PANEL_INSTALL: "1" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const txt = (r) => r.content.find((c) => c.type === "text").text;
 let step = 0;
@@ -56,7 +56,7 @@ function fakePanel(app) {
   return p;
 }
 
-console.log("adobe-bridge e2e");
+console.log("studio-relay e2e");
 const owner = await client();
 await sleep(400);
 const ae = fakePanel("AEFT");
@@ -113,6 +113,15 @@ const pr = await owner.callTool({ name: "job_result", arguments: { job_id: pendI
 assert.equal(txt(pr), "survived");
 assert.equal(ae.runs, 6, "nothing ran twice");
 ok("result survives a panel reconnect, nothing re-run");
+
+// an outdated panel (the old adobe-bridge 0.1 panel still installed) must not knock the current one off
+const legacy = new WebSocket(`ws://127.0.0.1:${PORT}`);
+await new Promise((r) => legacy.once("open", r));
+const closed = new Promise((r) => legacy.once("close", (code) => r(code)));
+legacy.send(JSON.stringify({ type: "hello", role: "panel", app: "AEFT", version: "old" }));
+assert.equal(await closed, 4001);
+assert.equal(txt(await owner.callTool({ name: "run_script", arguments: { app: "AEFT", code: "return 'still the new panel'" } })), "still the new panel");
+ok("outdated panel is refused, current panel keeps working");
 
 // second server process joins the running hub as a controller
 const ctrl = await client();

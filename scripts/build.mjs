@@ -1,6 +1,6 @@
 // Builds the release files into dist/:
-//   adobe-bridge-<version>.mcpb   one-click install for Claude Desktop (server + panel)
-//   adobe-bridge-<version>.zip    manual install (install.sh / install.ps1)
+//   studio-relay-<version>.mcpb   one-click install for Claude Desktop (server + panel)
+//   studio-relay-<version>.zip    manual install (install.sh / install.ps1)
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,11 +13,11 @@ const dist = path.join(root, "dist");
 const sh = (cmd, cwd = root) => execSync(cmd, { cwd, stdio: "inherit" });
 
 // keep every version string in step with package.json
-const manifestXml = path.join(root, "cep/com.orkun.adobebridge/CSXS/manifest.xml");
+const manifestXml = path.join(root, "cep/com.orkun.studiorelay/CSXS/manifest.xml");
 fs.writeFileSync(manifestXml, fs.readFileSync(manifestXml, "utf8")
   .replace(/ExtensionBundleVersion="[^"]+"/, `ExtensionBundleVersion="${v}"`)
-  .replace(/(Extension Id="com\.orkun\.adobebridge\.panel" Version=)"[^"]+"/, `$1"${v}"`));
-const mainJs = path.join(root, "cep/com.orkun.adobebridge/main.js");
+  .replace(/(Extension Id="com\.orkun\.studiorelay\.panel" Version=)"[^"]+"/, `$1"${v}"`));
+const mainJs = path.join(root, "cep/com.orkun.studiorelay/main.js");
 fs.writeFileSync(mainJs, fs.readFileSync(mainJs, "utf8").replace(/PANEL_VERSION = "[^"]+"/, `PANEL_VERSION = "${v}"`));
 const serverJs = path.join(root, "server.js");
 fs.writeFileSync(serverJs, fs.readFileSync(serverJs, "utf8").replace(/export const VERSION = "[^"]+"/, `export const VERSION = "${v}"`));
@@ -33,14 +33,14 @@ manifest.version = v;
 fs.writeFileSync(path.join(stage, "manifest.json"), JSON.stringify(manifest, null, 2));
 fs.copyFileSync(path.join(root, "LICENSE"), path.join(stage, "LICENSE"));
 sh("npm ci --omit=dev --no-audit --no-fund --silent", srv);
-sh(`npx -y @anthropic-ai/mcpb@2 pack "${stage}" "${path.join(dist, `adobe-bridge-${v}.mcpb`)}"`);
+sh(`npx -y @anthropic-ai/mcpb@2 pack "${stage}" "${path.join(dist, `studio-relay-${v}.mcpb`)}"`);
 
-const zipDir = path.join(dist, `adobe-bridge-${v}`);
+const zipDir = path.join(dist, `studio-relay-${v}`);
 fs.mkdirSync(zipDir, { recursive: true });
 for (const f of ["server.js", "package.json", "package-lock.json", "install.sh", "install.ps1", "uninstall.sh", "uninstall.ps1", "README.md", "LICENSE", "CHANGELOG.md"])
   fs.copyFileSync(path.join(root, f), path.join(zipDir, f));
 fs.cpSync(path.join(root, "cep"), path.join(zipDir, "cep"), { recursive: true });
-sh(`zip -qr "adobe-bridge-${v}.zip" "adobe-bridge-${v}"`, dist);
+sh(`zip -qr "studio-relay-${v}.zip" "studio-relay-${v}"`, dist);
 fs.rmSync(zipDir, { recursive: true, force: true });
 fs.rmSync(stage, { recursive: true, force: true });
-console.log(`\nbuilt dist/adobe-bridge-${v}.mcpb and dist/adobe-bridge-${v}.zip`);
+console.log(`\nbuilt dist/studio-relay-${v}.mcpb and dist/studio-relay-${v}.zip`);

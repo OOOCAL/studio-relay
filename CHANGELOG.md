@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.2.0
+- **Renamed from `adobe-bridge` to Studio Relay** (`studio-relay`), so it is not confused with Adobe's own Adobe Bridge app. The installers and the server remove the old panel and the old Claude Desktop entry; an old panel that is still loaded cannot take the connection from the new one.
 - Long scripts run as **jobs**: a call waits up to `wait_ms` (default 45 s) and then returns a job id instead of timing out. New `job_result` tool. A retry never runs a script twice.
 - Scripts for one app run **one at a time, in order** (parallel frame exports used to crash Premiere).
 - **Heartbeat** on both sides: silent connections (sleeping Mac, crashed app) are dropped and reconnected automatically.
@@ -13,4 +14,4 @@
 - Windows installer (`install.ps1`), uninstallers, GitHub Actions CI and release builds.
 
 ## 0.1.0
-- First version: `list_apps`, `app_state`, `run_script`, `export_frame` for After Effects, Premiere Pro, Photoshop, Illustrator and InDesign.
+- First version, released as `adobe-bridge`: `list_apps`, `app_state`, `run_script`, `export_frame` for After Effects, Premiere Pro, Photoshop, Illustrator and InDesign.

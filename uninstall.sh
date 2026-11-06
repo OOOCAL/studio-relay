@@ -1,8 +1,8 @@
 #!/bin/bash
-# Removes adobe-bridge from this Mac (server, panel, Claude Desktop entry).
+# Removes studio-relay from this Mac (server, panel, Claude Desktop entry).
 set -e
-DEST="$HOME/Library/Application Support/adobe-bridge"
-PANEL="$HOME/Library/Application Support/Adobe/CEP/extensions/com.orkun.adobebridge"
+DEST="$HOME/Library/Application Support/studio-relay"
+PANEL="$HOME/Library/Application Support/Adobe/CEP/extensions/com.orkun.studiorelay"
 CLAUDE_CFG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
 
 rm -rf "$DEST" "$PANEL"
@@ -11,8 +11,8 @@ if [ -f "$CLAUDE_CFG" ] && command -v node >/dev/null 2>&1; then
   node -e '
 const fs = require("fs"); const p = process.argv[1];
 const cfg = JSON.parse(fs.readFileSync(p, "utf8"));
-if (cfg.mcpServers) delete cfg.mcpServers["adobe-bridge"];
+if (cfg.mcpServers) delete cfg.mcpServers["studio-relay"];
 fs.writeFileSync(p, JSON.stringify(cfg, null, 2));' "$CLAUDE_CFG"
 fi
-command -v claude >/dev/null 2>&1 && claude mcp remove --scope user adobe-bridge >/dev/null 2>&1 || true
-echo "adobe-bridge kaldırıldı / removed. (PlayerDebugMode was left on; turn it off with: defaults delete com.adobe.CSXS.12 PlayerDebugMode)"
+command -v claude >/dev/null 2>&1 && claude mcp remove --scope user studio-relay >/dev/null 2>&1 || true
+echo "studio-relay kaldırıldı / removed. (PlayerDebugMode was left on; turn it off with: defaults delete com.adobe.CSXS.12 PlayerDebugMode)"

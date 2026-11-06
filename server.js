@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// adobe-bridge — a local MCP server for Adobe desktop apps.
+// studio-relay — a local MCP server for Adobe desktop apps.
 //
 // Claude (Desktop / Code) <-stdio-> this server <-WebSocket-> CEP panel in each Adobe app
 //
@@ -22,14 +22,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const VERSION = "0.2.0";
-const PORT = Number(process.env.ADOBE_BRIDGE_PORT || 8765);
+const PORT = Number(process.env.STUDIO_RELAY_PORT || 8765);
 const HOST = "127.0.0.1";
-const DEFAULT_WAIT = Number(process.env.ADOBE_BRIDGE_WAIT_MS || 45_000);     // how long a tool call waits for an answer
+const DEFAULT_WAIT = Number(process.env.STUDIO_RELAY_WAIT_MS || 45_000);     // how long a tool call waits for an answer
 const DEFAULT_JOB_TIMEOUT = 30 * 60_000;                                       // hard limit for one script
 const HEARTBEAT_MS = 10_000;
 const PANEL_GRACE_MS = 2 * 60_000;   // keep a running job alive while its panel reconnects
 const JOB_KEEP_MS = 60 * 60_000;     // finished jobs are kept this long for job_result
-const log = (...a) => console.error("[adobe-bridge]", ...a); // stderr only: stdout is MCP
+const log = (...a) => console.error("[studio-relay]", ...a); // stderr only: stdout is MCP
 
 process.on("uncaughtException", (e) => log("uncaught:", e?.stack || e));
 process.on("unhandledRejection", (e) => log("unhandled:", e?.stack || e));
@@ -45,6 +45,8 @@ const APP_ALIASES = {
 const APP_NAMES = { AEFT: "After Effects", PPRO: "Premiere Pro", PHXS: "Photoshop", ILST: "Illustrator", IDSN: "InDesign", AUDT: "Audition" };
 const normApp = (a) => APP_ALIASES[String(a ?? "").trim()] || APP_ALIASES[String(a ?? "").trim().toLowerCase()] || null;
 const appName = (a) => APP_NAMES[a] || a;
+const versionLess = (a, b) => { const x = String(a || "0.1.0").split(".").map(Number), y = String(b || "0.1.0").split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); return false; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ================================================================ hub (owner mode)
@@ -122,6 +124,12 @@ function onConnection(ws) {
 function registerPanel(ws, msg) {
   const app = normApp(msg.app) || msg.app;
   const old = panels.get(app);
+  if (old && old.ws !== ws && old.ws.readyState === WebSocket.OPEN && versionLess(msg.panelVersion, old.info.panel)) {
+    // an outdated second panel (e.g. the old adobe-bridge panel still installed): keep the current one
+    log(`ignoring outdated panel ${msg.panelVersion || "0.1"} for ${app}; remove it from the CEP extensions folder`);
+    try { ws.close(4001, "outdated panel"); } catch {}
+    return;
+  }
   if (old && old.ws !== ws) { try { old.ws.close(4000, "replaced"); } catch {} }
   ws._panelApp = app;
   panels.set(app, { ws, lastSeen: Date.now(), info: { app, name: appName(app), version: msg.version, document: msg.document, panel: msg.panelVersion } });
@@ -198,7 +206,7 @@ function submit(app, code, timeoutMs) {
 
 function notConnected(app) {
   const open = [...panels.keys()].map(appName).join(", ") || "none";
-  return `${appName(app)} is not connected. Open it and its panel (Window > Extensions > Adobe Bridge (Claude)). Connected now: ${open}.`;
+  return `${appName(app)} is not connected. Open it and its panel (Window > Extensions > Studio Relay). Connected now: ${open}.`;
 }
 
 function waitJob(job, waitMs) {
@@ -264,7 +272,7 @@ function connectUpstream() {
     });
     ws.on("close", () => {
       if (upstream === ws) upstream = null;
-      for (const [id, r] of replies) { clearTimeout(r.timer); r.reject(new Error("Lost the connection to the adobe-bridge hub (the Claude window that owned it closed). Check the app before running the script again; this window has taken over the hub.")); replies.delete(id); }
+      for (const [id, r] of replies) { clearTimeout(r.timer); r.reject(new Error("Lost the connection to the studio-relay hub (the Claude window that owned it closed). Check the app before running the script again; this window has taken over the hub.")); replies.delete(id); }
       // the owner is gone: try to become the hub so the panels have somewhere to reconnect
       setTimeout(() => takeOver().catch(() => {}), 300 + Math.random() * 700);
     });
@@ -293,9 +301,9 @@ async function request(msg) {
   const id = newId("c");
   const waitMs = msg.waitMs ?? DEFAULT_WAIT;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { replies.delete(id); reject(new Error("The adobe-bridge hub did not answer.")); }, waitMs + 15_000);
+    const timer = setTimeout(() => { replies.delete(id); reject(new Error("The studio-relay hub did not answer.")); }, waitMs + 15_000);
     replies.set(id, { resolve, reject, timer });
-    if (!safeSend(upstream, { ...msg, id })) { clearTimeout(timer); replies.delete(id); reject(new Error("Could not reach the adobe-bridge hub.")); }
+    if (!safeSend(upstream, { ...msg, id })) { clearTimeout(timer); replies.delete(id); reject(new Error("Could not reach the studio-relay hub.")); }
   });
 }
 
@@ -414,11 +422,11 @@ function jobReply(v) {
     `The script keeps running. Call job_result with job_id "${v.job}" to get the result. Do NOT run the script again.`);
 }
 
-const server = new McpServer({ name: "adobe-bridge", version: VERSION });
+const server = new McpServer({ name: "studio-relay", version: VERSION });
 
 server.registerTool("list_apps", {
   title: "List connected Adobe apps",
-  description: "Which Adobe apps have the Adobe Bridge panel open and connected right now, and whether each is busy with a script. Call this first.",
+  description: "Which Adobe apps have the Studio Relay panel open and connected right now, and whether each is busy with a script. Call this first.",
   inputSchema: {},
 }, async () => {
   try { return text(await request({ type: "list" })); } catch (e) { return fail(e); }
@@ -472,7 +480,7 @@ server.registerTool("export_frame", {
 }, async ({ app, time, comp }) => {
   const a = normApp(app);
   if (!a) return fail(`Unknown app "${app}"`);
-  const dir = path.join(os.tmpdir(), "adobe-bridge-frames");
+  const dir = path.join(os.tmpdir(), "studio-relay-frames");
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, `${a}-${Date.now()}.png`);
   try {
@@ -492,15 +500,21 @@ server.registerTool("export_frame", {
 // the user's CEP extensions folder when it is missing or older, and allows unsigned
 // panels, so installing the .mcpb in Claude Desktop is the whole setup.
 async function ensurePanelInstalled() {
-  if (process.env.ADOBE_BRIDGE_NO_PANEL_INSTALL) return;
+  if (process.env.STUDIO_RELAY_NO_PANEL_INSTALL) return;
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const src = path.join(here, "cep", "com.orkun.adobebridge");
+  const src = path.join(here, "cep", "com.orkun.studiorelay");
   const home = os.homedir();
   const cepRoot = process.platform === "darwin" ? path.join(home, "Library", "Application Support", "Adobe", "CEP", "extensions")
     : process.platform === "win32" ? path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "Adobe", "CEP", "extensions")
     : null;
   if (!cepRoot) return;
-  const dest = path.join(cepRoot, "com.orkun.adobebridge");
+  const dest = path.join(cepRoot, "com.orkun.studiorelay");
+  // the panel used to be called "adobe-bridge"; two panels in one app would fight over the connection
+  const legacy = path.join(cepRoot, "com.orkun.adobebridge");
+  if (await fs.stat(legacy).then(() => true, () => false)) {
+    await fs.rm(legacy, { recursive: true, force: true });
+    log(`removed the old adobe-bridge panel (${legacy})`);
+  }
   const ver = async (dir) => { try { return /ExtensionBundleVersion="([^"]+)"/.exec(await fs.readFile(path.join(dir, "CSXS", "manifest.xml"), "utf8"))?.[1] || null; } catch { return null; } };
   const have = await ver(dest), want = await ver(src);
   if (!want) return; // not bundled (running from somewhere else)

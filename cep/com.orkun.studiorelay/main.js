@@ -1,4 +1,4 @@
-/* Adobe Bridge panel: keeps a WebSocket open to the local adobe-bridge MCP server
+/* Studio Relay panel: keeps a WebSocket open to the local studio-relay MCP server
    and runs the ExtendScript it receives through the host's evalScript.
 
    Built to survive drops: it reconnects on its own, notices a silent connection

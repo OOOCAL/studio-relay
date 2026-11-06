@@ -1,13 +1,13 @@
-# adobe-bridge installer for Windows. Run from the unzipped folder in PowerShell:
+# studio-relay installer for Windows. Run from the unzipped folder in PowerShell:
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 # (If you installed the .mcpb file in Claude Desktop you do not need this script.)
 $ErrorActionPreference = "Stop"
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Dest = Join-Path $env:APPDATA "adobe-bridge"
+$Dest = Join-Path $env:APPDATA "studio-relay"
 $CepDir = Join-Path $env:APPDATA "Adobe\CEP\extensions"
 $ClaudeCfg = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
 
-Write-Host "== adobe-bridge installation =="
+Write-Host "== studio-relay installation =="
 
 $node = (Get-Command node -ErrorAction SilentlyContinue).Source
 if (-not $node) { Write-Host "Node.js not found. Install the LTS from https://nodejs.org and run this again."; exit 1 }
@@ -27,9 +27,11 @@ Write-Host "Server: $Dest"
 
 # CEP panel
 New-Item -ItemType Directory -Force -Path $CepDir | Out-Null
-$panel = Join-Path $CepDir "com.orkun.adobebridge"
+$panel = Join-Path $CepDir "com.orkun.studiorelay"
 if (Test-Path $panel) { Remove-Item $panel -Recurse -Force }
-Copy-Item "$Here\cep\com.orkun.adobebridge" $panel -Recurse
+$legacy = Join-Path $CepDir "com.orkun.adobebridge"   # old name
+if (Test-Path $legacy) { Remove-Item $legacy -Recurse -Force }
+Copy-Item "$Here\cep\com.orkun.studiorelay" $panel -Recurse
 Write-Host "Panel: $panel"
 
 # allow unsigned panels
@@ -45,7 +47,8 @@ const [cfgPath, node, server] = process.argv.slice(1);
 let cfg = {};
 try { cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch {}
 cfg.mcpServers = cfg.mcpServers || {};
-cfg.mcpServers["adobe-bridge"] = { command: node, args: [server] };
+delete cfg.mcpServers["adobe-bridge"]; // old name
+cfg.mcpServers["studio-relay"] = { command: node, args: [server] };
 fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 '@ $ClaudeCfg $node (Join-Path $Dest "server.js")
 Write-Host "Claude Desktop: $ClaudeCfg"
@@ -54,4 +57,4 @@ Write-Host ""
 Write-Host "Done:"
 Write-Host "  1. Quit Claude completely (tray icon > Quit) and reopen it."
 Write-Host "  2. Restart your Adobe apps."
-Write-Host "  3. Window > Extensions > Adobe Bridge (Claude): green dot = connected."
+Write-Host "  3. Window > Extensions > Studio Relay: green dot = connected."

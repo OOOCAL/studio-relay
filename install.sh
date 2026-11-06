@@ -1,14 +1,14 @@
 #!/bin/bash
-# adobe-bridge installer for macOS. Run from the unzipped folder:  bash install.sh
+# studio-relay installer for macOS. Run from the unzipped folder:  bash install.sh
 # (If you installed the .mcpb file in Claude Desktop you do not need this script.)
 set -e
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-DEST="$HOME/Library/Application Support/adobe-bridge"
+DEST="$HOME/Library/Application Support/studio-relay"
 CEP_DIR="$HOME/Library/Application Support/Adobe/CEP/extensions"
 CLAUDE_CFG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
 
-echo "== adobe-bridge kurulumu / installation =="
+echo "== studio-relay kurulumu / installation =="
 
 # 1) Node.js 18+
 NODE="$(command -v node || true)"
@@ -34,9 +34,10 @@ echo "Sunucu / server: $DEST"
 
 # 3) CEP panel (one extension for AE, Premiere, Photoshop, Illustrator, InDesign, Audition)
 mkdir -p "$CEP_DIR"
-rm -rf "$CEP_DIR/com.orkun.adobebridge"
-cp -R "$HERE/cep/com.orkun.adobebridge" "$CEP_DIR/"
-echo "Panel: $CEP_DIR/com.orkun.adobebridge"
+rm -rf "$CEP_DIR/com.orkun.studiorelay"
+rm -rf "$CEP_DIR/com.orkun.adobebridge" "$HOME/Library/Application Support/adobe-bridge"   # old name
+cp -R "$HERE/cep/com.orkun.studiorelay" "$CEP_DIR/"
+echo "Panel: $CEP_DIR/com.orkun.studiorelay"
 
 # 4) allow unsigned panels (CEP debug mode)
 for v in 9 10 11 12 13 14 15; do defaults write "com.adobe.CSXS.$v" PlayerDebugMode 1; done
@@ -51,14 +52,16 @@ const [cfgPath, node, server] = process.argv.slice(1);
 let cfg = {};
 try { cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch {}
 cfg.mcpServers = cfg.mcpServers || {};
-cfg.mcpServers["adobe-bridge"] = { command: node, args: [server] };
+delete cfg.mcpServers["adobe-bridge"]; // old name
+cfg.mcpServers["studio-relay"] = { command: node, args: [server] };
 fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 ' "$CLAUDE_CFG" "$NODE" "$DEST/server.js"
 echo "Claude Desktop: $CLAUDE_CFG"
 
 # 6) Claude Code (optional)
 if command -v claude >/dev/null 2>&1; then
-  claude mcp add --scope user adobe-bridge -- "$NODE" "$DEST/server.js" 2>/dev/null && echo "Claude Code: eklendi / added" || true
+  claude mcp remove --scope user adobe-bridge >/dev/null 2>&1 || true
+  claude mcp add --scope user studio-relay -- "$NODE" "$DEST/server.js" 2>/dev/null && echo "Claude Code: eklendi / added" || true
 fi
 
 cat <<EOF
@@ -66,5 +69,5 @@ cat <<EOF
 Tamam / Done:
   1. Claude'u tamamen kapatıp aç (Cmd+Q)  ·  Quit and reopen Claude (Cmd+Q).
   2. Adobe programlarını yeniden başlat  ·  Restart your Adobe apps.
-  3. Window > Extensions > Adobe Bridge (Claude): yeşil nokta = bağlı  ·  green dot = connected.
+  3. Window > Extensions > Studio Relay: yeşil nokta = bağlı  ·  green dot = connected.
 EOF

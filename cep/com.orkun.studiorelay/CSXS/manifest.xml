@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.orkun.adobebridge" ExtensionBundleVersion="0.2.0"
-  ExtensionBundleName="Adobe Bridge (Claude)"
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.orkun.studiorelay" ExtensionBundleVersion="0.2.0"
+  ExtensionBundleName="Studio Relay"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.orkun.adobebridge.panel" Version="0.2.0" />
+    <Extension Id="com.orkun.studiorelay.panel" Version="0.2.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -19,7 +19,7 @@
     <RequiredRuntimeList><RequiredRuntime Name="CSXS" Version="9.0" /></RequiredRuntimeList>
   </ExecutionEnvironment>
   <DispatchInfoList>
-    <Extension Id="com.orkun.adobebridge.panel">
+    <Extension Id="com.orkun.studiorelay.panel">
       <DispatchInfo>
         <Resources>
           <MainPath>./index.html</MainPath>
@@ -37,7 +37,7 @@
         </Lifecycle>
         <UI>
           <Type>Panel</Type>
-          <Menu>Adobe Bridge (Claude)</Menu>
+          <Menu>Studio Relay</Menu>
           <Geometry>
             <Size><Height>160</Height><Width>300</Width></Size>
             <MinSize><Height>80</Height><Width>200</Width></MinSize>
