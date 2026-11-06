@@ -1,0 +1,30 @@
+{
+  "manifest_version": "0.2",
+  "name": "adobe-bridge",
+  "display_name": "Adobe Bridge for Claude",
+  "version": "0.0.0",
+  "description": "Drive After Effects, Premiere Pro, Photoshop, Illustrator, InDesign and Audition from Claude.",
+  "long_description": "A local MCP server. It talks to the 'Adobe Bridge (Claude)' panel inside each Adobe app over 127.0.0.1:8765 and runs ExtendScript, reads project state and renders preview frames. Long scripts (renders, batch exports) run as jobs, so nothing times out or runs twice. On first start it installs the panel into your Adobe CEP extensions folder; restart your Adobe apps once afterwards.",
+  "author": { "name": "Orkun Öcal" },
+  "license": "MIT",
+  "keywords": ["adobe", "after effects", "premiere", "photoshop", "illustrator", "indesign", "extendscript"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/server.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/server.js"]
+    }
+  },
+  "tools": [
+    { "name": "list_apps", "description": "List the connected Adobe apps and whether they are busy" },
+    { "name": "app_state", "description": "Read the open project / comp / sequence / document" },
+    { "name": "run_script", "description": "Run ExtendScript inside an app" },
+    { "name": "job_result", "description": "Get the result of a long-running script" },
+    { "name": "export_frame", "description": "Render a frame or page and look at it" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32"],
+    "runtimes": { "node": ">=18.0.0" }
+  }
+}
