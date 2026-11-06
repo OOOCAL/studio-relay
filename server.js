@@ -151,6 +151,8 @@ function finish(job, status, result, error) {
   if (job.status !== "running" && job.status !== "queued") return;
   job.status = status; job.result = result; job.error = error; job.finished = Date.now();
   clearTimeout(job.timer);
+  if (job.msgId) waiting.delete(job.msgId);
+  job.code = null; // free the script text
   job._release?.();
   for (const w of job.watchers.splice(0)) w();
 }
