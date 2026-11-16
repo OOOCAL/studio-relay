@@ -24,7 +24,7 @@ async function client() {
 // A fake panel that behaves like main.js: acks, dedupes, keeps an outbox across reconnects.
 // Scripts run with Node's Function; `await`-free "sleep" is simulated with a SLEEP:<ms> prefix.
 function fakePanel(app) {
-  const p = { app, ws: null, outbox: [], seen: new Set(), runs: 0 };
+  const p = { app, ws: null, outbox: [], seen: new Set(), runs: 0, running: new Set(["ame"]), relayed: [] };
   p.connect = () => new Promise((resolve) => {
     const ws = new WebSocket(`ws://127.0.0.1:${PORT}`);
     p.ws = ws;
@@ -40,7 +40,16 @@ function fakePanel(app) {
       if (m.type !== "run") return;
       ws.send(JSON.stringify({ type: "ack", id: m.id }));
       if (p.seen.has(m.id)) return;
-      p.seen.add(m.id); p.runs++;
+      p.seen.add(m.id);
+      if (m.target) {
+        // BridgeTalk relay, like host.jsx __relaySend: only apps in p.running answer
+        p.relayed.push(m.target);
+        let reply;
+        if (!p.running.has(m.target) && !m.launch) reply = { ok: false, error: `${m.target} is not running. Open it, or call again with launch: true to start it.` };
+        else { p.running.add(m.target); try { reply = { ok: true, result: new Function(m.code)() ?? null }; } catch (e) { reply = { ok: false, error: e.message }; } }
+        return ws.send(JSON.stringify({ type: "result", id: m.id, ...reply }));
+      }
+      p.runs++;
       const match = /^SLEEP:(\d+)\n/.exec(m.code);
       const delay = match ? Number(match[1]) : 0;
       const code = match ? m.code.slice(match[0].length) : m.code;
@@ -68,8 +77,10 @@ assert.deepEqual(tools, ["app_state", "export_frame", "job_result", "list_apps",
 ok("tools listed");
 
 const apps = JSON.parse(txt(await owner.callTool({ name: "list_apps", arguments: {} })));
-assert.equal(apps[0].app, "AEFT"); assert.equal(apps[0].busy, false);
-ok("list_apps");
+assert.equal(apps.connected[0].app, "AEFT"); assert.equal(apps.connected[0].busy, false);
+assert.ok(apps.relayed.some((a) => a.app === "AME" && a.via === "After Effects"), "Media Encoder reachable through AE");
+assert.ok(Array.isArray(apps.installed));
+ok("list_apps (connected, relayed, installed)");
 
 const r1 = await owner.callTool({ name: "run_script", arguments: { app: "ae", code: "return { sum: 2 + 3 };" } });
 assert.equal(JSON.parse(txt(r1)).sum, 5);
@@ -80,15 +91,24 @@ assert.equal(r2.isError, true); assert.match(txt(r2), /boom/);
 ok("script error reported");
 
 const r3 = await owner.callTool({ name: "run_script", arguments: { app: "premiere", code: "return 1" } });
-assert.equal(r3.isError, true); assert.match(txt(r3), /not connected/);
-ok("missing app reported");
+assert.equal(r3.isError, true); assert.match(txt(r3), /premierepro is not running/);
+ok("closed app reported through the relay");
+
+const r3b = await owner.callTool({ name: "run_script", arguments: { app: "media encoder", code: "return 'queued in AME'" } });
+assert.equal(txt(r3b), "queued in AME");
+ok("Media Encoder reached through BridgeTalk");
+
+const r3c = await owner.callTool({ name: "run_script", arguments: { app: "bridge", code: "return 'bridge up'", launch: true } });
+assert.equal(txt(r3c), "bridge up");
+assert.deepEqual(ae.relayed, ["premierepro", "ame", "bridge"]);
+ok("launch: true starts a closed app");
 
 // long script: returns a job id instead of timing out, job_result gets it later
 const long = await owner.callTool({ name: "run_script", arguments: { app: "AEFT", code: "SLEEP:2500\nreturn 'rendered'", wait_ms: 500 } });
 const jobId = /job_id "([^"]+)"/.exec(txt(long))?.[1];
 assert.ok(jobId, "job id returned: " + txt(long));
 const busy = JSON.parse(txt(await owner.callTool({ name: "list_apps", arguments: {} })));
-assert.equal(busy[0].busy, true);
+assert.equal(busy.connected[0].busy, true);
 const jr = await owner.callTool({ name: "job_result", arguments: { job_id: jobId, wait_ms: 5000 } });
 assert.equal(txt(jr), "rendered");
 ok("long script becomes a job, job_result returns it");

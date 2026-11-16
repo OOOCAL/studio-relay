@@ -2,7 +2,7 @@
 
 *(eski adı / formerly: adobe-bridge)*
 
-Claude'un **After Effects, Premiere Pro, Photoshop, Illustrator, InDesign ve Audition**'ı doğrudan yönetmesi için yerel bir MCP sunucusu. Limit yok, abonelik yok; her şey kendi bilgisayarında çalışır.
+Claude'un **After Effects, Premiere Pro, Photoshop, Illustrator, InDesign, Audition, Media Encoder ve Bridge**'i doğrudan yönetmesi için yerel bir MCP sunucusu. Limit yok, abonelik yok; her şey kendi bilgisayarında çalışır.
 
 *English below.*
 
@@ -33,11 +33,17 @@ Kaldırmak için: `bash uninstall.sh` / `uninstall.ps1`.
 
 | Araç | Ne yapar |
 |---|---|
-| `list_apps` | Hangi programlar bağlı, hangisi şu an meşgul |
-| `app_state` | AE: kompozisyonlar ve katmanlar · Premiere: sekanslar ve klipler · PS/AI/ID: açık belgeler |
-| `run_script` | Programın içinde ExtendScript çalıştırır, `return` ile sonuç döner |
+| `list_apps` | Hangi programlar bağlı, hangileri başka bir program üzerinden (BridgeTalk) ulaşılabilir, bilgisayarda hangi Adobe programları kurulu |
+| `app_state` | AE: kompozisyonlar ve katmanlar · Premiere: sekanslar ve klipler · PS/AI/ID: açık belgeler · Media Encoder: durum · Bridge: klasör ve seçim |
+| `run_script` | Programın içinde ExtendScript çalıştırır, `return` ile sonuç döner. `launch: true` kapalı programı (Media Encoder, Bridge…) açar |
 | `job_result` | Uzun süren bir işin (render, toplu dışa aktarma) sonucunu alır |
 | `export_frame` | AE/Premiere'den kare, PS/AI/ID'den önizleme render edip görüntü olarak döndürür |
+
+## Paneli olmayan programlar (Media Encoder, Bridge)
+
+Media Encoder ve Bridge'e, paneli açık olan herhangi bir programın (önce Premiere, sonra After Effects, Photoshop…) içinden **BridgeTalk** ile ulaşılır. Bir programın kendi paneli yüklenmemişse (ör. yeni bir Illustrator/InDesign sürümü) aynı yol yedek olarak kullanılır.
+
+Lightroom, Character Animator, XD, Dimension ve Acrobat'ın ExtendScript arayüzü yok; `list_apps` bunları nedeniyle birlikte gösterir.
 
 ## Kopmalara ve kapanmalara karşı
 
@@ -74,7 +80,7 @@ Sunucu yalnızca `127.0.0.1` üzerinde dinler; ağdan erişilemez. Panel, Claude
 
 ## English
 
-A local MCP server that lets Claude drive **After Effects, Premiere Pro, Photoshop, Illustrator, InDesign and Audition** through a small CEP panel in each app.
+A local MCP server that lets Claude drive **After Effects, Premiere Pro, Photoshop, Illustrator, InDesign, Audition, Media Encoder and Bridge** through a small CEP panel in each app; apps without a loaded panel (Media Encoder, Bridge) are reached through BridgeTalk from any connected app.
 
 **Install (Claude Desktop):** download `studio-relay-x.y.z.mcpb` from Releases, double-click it, click Install. On first start the server installs the panel into your Adobe CEP extensions folder; restart your Adobe apps once, then open **Window → Extensions → Studio Relay** (green dot = connected).
 
@@ -90,7 +96,7 @@ A local MCP server that lets Claude drive **After Effects, Premiere Pro, Photosh
 
 ---
 
-Bu proje Adobe ile bağlantılı değildir ve Adobe tarafından desteklenmez. Adobe, After Effects, Premiere Pro, Photoshop, Illustrator, InDesign ve Audition, Adobe Inc.'in ticari markalarıdır.
+Bu proje Adobe ile bağlantılı değildir ve Adobe tarafından desteklenmez. Adobe, After Effects, Premiere Pro, Photoshop, Illustrator, InDesign, Audition, Media Encoder ve Bridge, Adobe Inc.'in ticari markalarıdır.
 *Not affiliated with or endorsed by Adobe. Adobe product names are trademarks of Adobe Inc.*
 
 Lisans: MIT

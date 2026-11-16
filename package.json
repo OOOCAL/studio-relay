@@ -1,7 +1,7 @@
 {
   "name": "studio-relay",
-  "version": "0.2.0",
-  "description": "Local MCP server that lets Claude drive After Effects, Premiere Pro, Photoshop, Illustrator, InDesign and Audition through a CEP panel.",
+  "version": "0.3.0",
+  "description": "Local MCP server that lets Claude drive After Effects, Premiere Pro, Photoshop, Illustrator, InDesign, Audition, Media Encoder and Bridge through a CEP panel and BridgeTalk.",
   "type": "module",
   "main": "server.js",
   "bin": { "studio-relay": "server.js" },
@@ -11,7 +11,7 @@
     "test": "node test/e2e.js",
     "build": "node scripts/build.mjs"
   },
-  "keywords": ["mcp", "claude", "adobe", "after-effects", "premiere-pro", "photoshop", "illustrator", "indesign", "extendscript", "cep"],
+  "keywords": ["mcp", "claude", "adobe", "after-effects", "premiere-pro", "photoshop", "illustrator", "indesign", "extendscript", "cep", "media-encoder", "bridge"],
   "author": "Orkun Öcal",
   "license": "MIT",
   "dependencies": {

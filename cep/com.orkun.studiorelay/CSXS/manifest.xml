@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.orkun.studiorelay" ExtensionBundleVersion="0.2.0"
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.orkun.studiorelay" ExtensionBundleVersion="0.3.0"
   ExtensionBundleName="Studio Relay"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.orkun.studiorelay.panel" Version="0.2.0" />
+    <Extension Id="com.orkun.studiorelay.panel" Version="0.3.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -14,6 +14,8 @@
       <Host Name="ILST" Version="[26.0,99.9]" />
       <Host Name="IDSN" Version="[17.0,99.9]" />
       <Host Name="AUDT" Version="[22.0,99.9]" />
+      <Host Name="AME" Version="[22.0,99.9]" />
+      <Host Name="KBRG" Version="[12.0,99.9]" />
     </HostList>
     <LocaleList><Locale Code="All" /></LocaleList>
     <RequiredRuntimeList><RequiredRuntime Name="CSXS" Version="9.0" /></RequiredRuntimeList>

@@ -6,7 +6,7 @@
    outbox until the server has them, so a long render that ends during a reconnect
    is not lost. A script id is never run twice. */
 (function () {
-  var PANEL_VERSION = "0.2.0";
+  var PANEL_VERSION = "0.3.0";
   var PORT = 8765;
   var URL = "ws://127.0.0.1:" + PORT;
   var SILENCE_MS = 35000;   // no ping from the server for this long -> reconnect
@@ -46,26 +46,47 @@
     if (!send(reply)) outbox.push(reply);
   }
 
+  function parseReply(res) {
+    var reply;
+    if (res === "EvalScript error.") {
+      reply = { ok: false, error: "EvalScript error (host.jsx not loaded or syntax error)" };
+    } else {
+      try { reply = JSON.parse(res); } catch (e) { reply = { ok: true, result: res }; }
+    }
+    return reply;
+  }
+
   function run(msg) {
     if (seen[msg.id]) { send({ type: "ack", id: msg.id }); return; }
     seen[msg.id] = true;
     send({ type: "ack", id: msg.id });
     running++; refreshStatus();
     var started = Date.now();
-    // host.jsx defines __bridgeRun(codeString) -> JSON string {ok, result|error}
-    var call = "__bridgeRun(" + JSON.stringify(msg.code) + ")";
-    evalScript(call).then(function (res) {
-      var reply;
-      if (res === "EvalScript error.") {
-        reply = { ok: false, error: "EvalScript error (host.jsx not loaded or syntax error)" };
-      } else {
-        try { reply = JSON.parse(res); } catch (e) { reply = { ok: true, result: res }; }
-      }
+    var label = msg.target ? (" → " + msg.target) : "";
+    function done(res) {
+      var reply = parseReply(res);
       reply.type = "result";
       reply.id = msg.id;
       running--; deliver(reply); refreshStatus();
-      log((reply.ok ? "ok " : "hata ") + Math.round((Date.now() - started) / 100) / 10 + " sn");
-    });
+      log((reply.ok ? "ok " : "hata ") + Math.round((Date.now() - started) / 100) / 10 + " sn" + label);
+    }
+    if (msg.target) {
+      // relay through BridgeTalk to another app (Media Encoder, Bridge, an app without a panel)
+      var call = "__relaySend(" + JSON.stringify(msg.id) + "," + JSON.stringify(msg.target) + "," + JSON.stringify(msg.code) + "," + (msg.launch ? "true" : "false") + ")";
+      evalScript(call).then(function (res) {
+        if (res !== "sent") { done(res); return; }
+        var limit = Date.now() + 6 * 3600 * 1000;
+        var t = setInterval(function () {
+          if (Date.now() > limit) { clearInterval(t); done(JSON.stringify({ ok: false, error: "Relay gave up waiting for " + msg.target })); return; }
+          evalScript("__relayPoll(" + JSON.stringify(msg.id) + ")").then(function (r) {
+            if (r && r !== "EvalScript error.") { clearInterval(t); done(r); }
+          });
+        }, 400);
+      });
+      return;
+    }
+    // host.jsx defines __bridgeRun(codeString) -> JSON string {ok, result|error}
+    evalScript("__bridgeRun(" + JSON.stringify(msg.code) + ")").then(done);
   }
 
   function send(obj) {

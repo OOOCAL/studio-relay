@@ -21,7 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 const PORT = Number(process.env.STUDIO_RELAY_PORT || 8765);
 const HOST = "127.0.0.1";
 const DEFAULT_WAIT = Number(process.env.STUDIO_RELAY_WAIT_MS || 45_000);     // how long a tool call waits for an answer
@@ -41,10 +41,33 @@ const APP_ALIASES = {
   ILST: "ILST", ai: "ILST", illustrator: "ILST",
   IDSN: "IDSN", id: "IDSN", indesign: "IDSN",
   AUDT: "AUDT", au: "AUDT", audition: "AUDT",
+  AME: "AME", ame: "AME", "media encoder": "AME", mediaencoder: "AME", "adobe media encoder": "AME", encoder: "AME",
+  KBRG: "KBRG", bridge: "KBRG", "adobe bridge": "KBRG", br: "KBRG",
 };
-const APP_NAMES = { AEFT: "After Effects", PPRO: "Premiere Pro", PHXS: "Photoshop", ILST: "Illustrator", IDSN: "InDesign", AUDT: "Audition" };
+const APP_NAMES = { AEFT: "After Effects", PPRO: "Premiere Pro", PHXS: "Photoshop", ILST: "Illustrator", IDSN: "InDesign", AUDT: "Audition", AME: "Media Encoder", KBRG: "Bridge" };
+// BridgeTalk names: an app without its own panel is reached through any app that has one
+const BT_TARGET = { AEFT: "aftereffects", PPRO: "premierepro", PHXS: "photoshop", ILST: "illustrator", IDSN: "indesign", AUDT: "audition", AME: "ame", KBRG: "bridge" };
+const RELAY_ORDER = ["PPRO", "AEFT", "PHXS", "IDSN", "ILST", "AUDT", "KBRG", "AME"];
+// installed Adobe apps that have no scripting interface Studio Relay can use
+const NOT_SCRIPTABLE = {
+  "Lightroom": "Lightroom only has a Lua plug-in SDK, no ExtendScript.",
+  "Character Animator": "Character Animator has no scripting interface.",
+  "XD": "XD is discontinued and only takes UXP plug-ins.",
+  "Dimension": "Dimension is discontinued and has no scripting interface.",
+  "Acrobat": "Acrobat uses its own JavaScript, not ExtendScript; not supported yet.",
+  "Animate": "Animate uses JSFL; not supported yet.",
+};
 const normApp = (a) => APP_ALIASES[String(a ?? "").trim()] || APP_ALIASES[String(a ?? "").trim().toLowerCase()] || null;
 const appName = (a) => APP_NAMES[a] || a;
+// which connected panel carries a script for `app`: its own, or another one that relays it
+function relayPanel(app) {
+  for (const k of RELAY_ORDER) if (k !== app && panels.has(k)) return k;
+  for (const k of panels.keys()) if (k !== app) return k;
+  return null;
+}
+const route = (app) => panels.has(app) ? app : (BT_TARGET[app] ? relayPanel(app) : null);
+const runMsg = (job) => job.via === job.app ? { type: "run", id: job.msgId, code: job.code }
+  : { type: "run", id: job.msgId, code: job.code, target: BT_TARGET[job.app], launch: !!job.launch };
 const versionLess = (a, b) => { const x = String(a || "0.1.0").split(".").map(Number), y = String(b || "0.1.0").split(".").map(Number);
   for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); return false; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -138,8 +161,8 @@ function registerPanel(ws, msg) {
   if (Array.isArray(msg.outbox)) msg.outbox.forEach(onPanelResult);
   // re-send anything that was dispatched but never acknowledged (lost in a reconnect)
   for (const job of jobs.values()) {
-    if (job.app === app && job.status === "running" && !job.acked && job.msgId) {
-      safeSend(ws, { type: "run", id: job.msgId, code: job.code });
+    if (job.via === app && job.status === "running" && !job.acked && job.msgId) {
+      safeSend(ws, runMsg(job));
     }
   }
 }
@@ -168,19 +191,19 @@ function finish(job, status, result, error) {
 function sweepJobs() {
   const now = Date.now();
   for (const [id, job] of jobs) {
-    if (job.status === "running" && !panels.has(job.app) && job.panelLostAt == null) job.panelLostAt = now;
-    if (job.status === "running" && panels.has(job.app)) job.panelLostAt = null;
+    if (job.status === "running" && !panels.has(job.via) && job.panelLostAt == null) job.panelLostAt = now;
+    if (job.status === "running" && panels.has(job.via)) job.panelLostAt = null;
     if (job.status === "running" && job.panelLostAt && now - job.panelLostAt > PANEL_GRACE_MS) {
-      finish(job, "error", null, `${appName(job.app)} panel did not come back. The script may or may not have finished; check the app before running it again.`);
+      finish(job, "error", null, `${appName(job.via)} panel did not come back. The script may or may not have finished; check the app before running it again.`);
     }
     if (job.finished && now - job.finished > JOB_KEEP_MS) jobs.delete(id);
   }
 }
 
 // Queue a script for an app. Returns the job immediately.
-function submit(app, code, timeoutMs) {
+function submit(app, code, timeoutMs, launch) {
   const job = {
-    id: newId(), app, code, status: "queued", created: Date.now(), started: null, finished: null,
+    id: newId(), app, via: null, launch: !!launch, code, status: "queued", created: Date.now(), started: null, finished: null,
     result: null, error: null, watchers: [], timeoutMs: timeoutMs || DEFAULT_JOB_TIMEOUT, acked: false, msgId: null,
   };
   jobs.set(job.id, job);
@@ -190,15 +213,17 @@ function submit(app, code, timeoutMs) {
     if (job.status !== "queued") return release();
     // the app's panel may be reconnecting: give it the grace period before failing
     const until = Date.now() + PANEL_GRACE_MS;
-    while (!panels.has(app) && Date.now() < until && job.status === "queued") await sleep(500);
-    const panel = panels.get(app);
+    while (!route(app) && Date.now() < until && job.status === "queued") await sleep(500);
+    const via = route(app);
+    const panel = via && panels.get(via);
     if (!panel) { finish(job, "error", null, notConnected(app)); return; }
+    job.via = via;
     job.status = "running"; job.started = Date.now();
     job.msgId = newId("m");
     waiting.set(job.msgId, job.id);
     job.timer = setTimeout(() => finish(job, "error", null,
       `Script still running after ${Math.round(job.timeoutMs / 1000)} s; stopped waiting. ${appName(app)} may still be working — check it before running again.`), job.timeoutMs);
-    safeSend(panel.ws, { type: "run", id: job.msgId, code }); // if this is lost, registerPanel re-sends it (not acked yet)
+    safeSend(panel.ws, runMsg(job)); // if this is lost, registerPanel re-sends it (not acked yet)
   }));
   queues.set(app, mine.catch(() => {}));
   return job;
@@ -206,7 +231,32 @@ function submit(app, code, timeoutMs) {
 
 function notConnected(app) {
   const open = [...panels.keys()].map(appName).join(", ") || "none";
-  return `${appName(app)} is not connected. Open it and its panel (Window > Extensions > Studio Relay). Connected now: ${open}.`;
+  return `${appName(app)} is not connected. Open it (its Studio Relay panel loads by itself), or open any app that has the panel ` +
+    `(Premiere Pro, After Effects, Photoshop…) so the script can be relayed to it. Connected now: ${open}.`;
+}
+
+// Adobe apps installed on this computer, and how Studio Relay reaches each one
+let installedCache = null;
+async function installedApps() {
+  if (installedCache) return installedCache;
+  const dirs = process.platform === "darwin" ? ["/Applications"]
+    : process.platform === "win32" ? [path.join(process.env.ProgramFiles || "C:\\Program Files", "Adobe")] : [];
+  const found = new Map();
+  for (const d of dirs) {
+    let names = [];
+    try { names = await fs.readdir(d); } catch { continue; }
+    for (const n of names) {
+      const m = /^(?:Adobe )?(After Effects|Premiere Pro|Photoshop|Illustrator|InDesign|Audition|Media Encoder|Bridge|Lightroom(?: Classic)?|Character Animator|XD|Dimension|Acrobat(?: DC| Pro)?|Animate)(?: CC)?(?: (\d{4}))?(?:\.app)?$/i.exec(n.replace(/^Adobe /i, "Adobe "));
+      if (!m || !/^adobe|acrobat/i.test(n)) continue;
+      const title = /^acrobat/i.test(m[1]) ? "Acrobat" : m[1].replace(/ Classic$/i, "");
+      const key = Object.keys(APP_NAMES).find((k) => APP_NAMES[k].toLowerCase() === title.toLowerCase());
+      const prev = found.get(title);
+      if (!prev || Number(m[2] || 0) > Number(prev.year || 0)) found.set(title, { name: title, year: m[2] || null, app: key || null });
+    }
+  }
+  installedCache = [...found.values()].map((a) => ({ ...a, scriptable: !!a.app, note: a.app ? undefined : (NOT_SCRIPTABLE[a.name] || "No scripting interface.") }));
+  setTimeout(() => { installedCache = null; }, 10 * 60_000);
+  return installedCache;
 }
 
 function waitJob(job, waitMs) {
@@ -227,10 +277,13 @@ const jobView = (job) => {
 
 async function handleRequest(msg) {
   if (msg.type === "list") {
-    return [...panels.values()].map((p) => {
-      const busy = [...jobs.values()].filter((j) => j.app === p.info.app && (j.status === "running" || j.status === "queued"));
-      return { ...p.info, busy: busy.length > 0, queue: busy.length };
-    });
+    const busyFor = (app) => [...jobs.values()].filter((j) => j.app === app && (j.status === "running" || j.status === "queued")).length;
+    const connected = [...panels.values()].map((p) => ({ ...p.info, busy: busyFor(p.info.app) > 0, queue: busyFor(p.info.app) }));
+    const relayed = Object.keys(BT_TARGET).filter((a) => !panels.has(a) && relayPanel(a)).map((a) => ({
+      app: a, name: appName(a), via: appName(relayPanel(a)), busy: busyFor(a) > 0,
+      note: "Reached through BridgeTalk. If it is not running, pass launch: true to run_script to start it.",
+    }));
+    return { connected, relayed, installed: await installedApps() };
   }
   if (msg.type === "job") {
     const job = jobs.get(msg.job);
@@ -241,12 +294,12 @@ async function handleRequest(msg) {
   // run
   const app = normApp(msg.app);
   if (!app) throw new Error(`Unknown app "${msg.app}"`);
-  if (!panels.has(app)) {
+  if (!route(app)) {
     // a panel that is reconnecting right now gets a few seconds
-    for (let i = 0; i < 10 && !panels.has(app); i++) await sleep(500);
-    if (!panels.has(app)) throw new Error(notConnected(app));
+    for (let i = 0; i < 10 && !route(app); i++) await sleep(500);
+    if (!route(app)) throw new Error(notConnected(app));
   }
-  const job = submit(app, msg.code, msg.timeoutMs);
+  const job = submit(app, msg.code, msg.timeoutMs, msg.launch);
   await waitJob(job, msg.waitMs ?? DEFAULT_WAIT);
   return jobView(job);
 }
@@ -301,7 +354,7 @@ async function request(msg) {
   const id = newId("c");
   const waitMs = msg.waitMs ?? DEFAULT_WAIT;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { replies.delete(id); reject(new Error("The studio-relay hub did not answer.")); }, waitMs + 15_000);
+    const timer = setTimeout(() => { replies.delete(id); reject(new Error("The studio-relay hub did not answer. If an old \"adobe-bridge\" / \"Adobe Bridge\" extension is still installed in Claude (Settings > Extensions), remove it: it holds the same port.")); }, waitMs + 15_000);
     replies.set(id, { resolve, reject, timer });
     if (!safeSend(upstream, { ...msg, id })) { clearTimeout(timer); replies.delete(id); reject(new Error("Could not reach the studio-relay hub.")); }
   });
@@ -352,6 +405,18 @@ return out;`,
   AUDT: `
 var out = { app: "Audition" };
 try { out.document = app.activeDocument ? app.activeDocument.displayName : null; } catch (e) {}
+return out;`,
+  AME: `
+var out = { app: "Media Encoder" };
+try { out.version = app.version; } catch (e) {}
+try { var fe = app.getFrontend(); out.frontend = !!fe; } catch (e) {}
+try { var eh = app.getEncoderHost(); out.encoderHost = !!eh; if (eh && eh.isBatchRunning) out.batchRunning = eh.isBatchRunning(); } catch (e) {}
+return out;`,
+  KBRG: `
+var out = { app: "Bridge", folder: null, selection: [], items: null };
+try { out.folder = decodeURI(app.document.presentationPath); } catch (e) {}
+try { var s = app.document.selections; for (var i = 0; i < s.length && i < 200; i++) out.selection.push(s[i].spec ? s[i].spec.fsName : s[i].name); } catch (e) {}
+try { out.items = app.document.visibleThumbnailsLength; } catch (e) {}
 return out;`,
 };
 
@@ -411,7 +476,7 @@ async function waitForFile(file, ms = 30_000) {
 // ================================================================ MCP tools
 const text = (obj) => ({ content: [{ type: "text", text: typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) }] });
 const fail = (err) => ({ isError: true, content: [{ type: "text", text: String(err?.message || err) }] });
-const appParam = z.string().describe("Target app: AEFT/ae/aftereffects, PPRO/pr/premiere, PHXS/ps/photoshop, ILST/ai/illustrator, IDSN/id/indesign, AUDT/audition");
+const appParam = z.string().describe("Target app: AEFT/ae/aftereffects, PPRO/pr/premiere, PHXS/ps/photoshop, ILST/ai/illustrator, IDSN/id/indesign, AUDT/audition, AME/ame/media encoder, KBRG/bridge");
 const waitParam = z.number().int().min(0).max(55_000).optional()
   .describe(`How long to wait for the answer before returning a job id instead (default ${DEFAULT_WAIT} ms). Keep under 55000 when the call goes through a remote bridge with a 60 s limit.`);
 
@@ -426,7 +491,7 @@ const server = new McpServer({ name: "studio-relay", version: VERSION });
 
 server.registerTool("list_apps", {
   title: "List connected Adobe apps",
-  description: "Which Adobe apps have the Studio Relay panel open and connected right now, and whether each is busy with a script. Call this first.",
+  description: "Which Adobe apps are connected right now (own panel), which are reached through another app's panel (Media Encoder, Bridge, apps whose panel is not loaded), whether each is busy, and which Adobe apps are installed and scriptable. Call this first.",
   inputSchema: {},
 }, async () => {
   try { return text(await request({ type: "list" })); } catch (e) { return fail(e); }
@@ -434,7 +499,7 @@ server.registerTool("list_apps", {
 
 server.registerTool("app_state", {
   title: "Read app state",
-  description: "Read the open project/document of an app: AE comps and active comp layers; Premiere sequences and active sequence clips per track; PS/AI/ID open documents. Call before editing.",
+  description: "Read the open project/document of an app: AE comps and active comp layers; Premiere sequences and active sequence clips per track; PS/AI/ID open documents; Media Encoder status; Bridge folder and selection. Call before editing.",
   inputSchema: { app: appParam },
 }, async ({ app }) => {
   const a = normApp(app);
@@ -448,17 +513,19 @@ server.registerTool("run_script", {
     "Run ExtendScript (ES3 JavaScript) inside the app and return its result. The code runs as a function body: use `return` to send a value back (it is JSON-serialized). " +
     "Throw to report an error. Scripts for one app run one at a time, in order. If the script takes longer than wait_ms, you get a job id: call job_result with it — never re-run the script. " +
     "In After Effects wrap edits in app.beginUndoGroup('name') / app.endUndoGroup() so the user can undo them in one step. " +
-    "Premiere: use app.project / app.project.activeSequence; call app.enableQE() for the qe DOM. No ES5+ features (no let/const, arrow functions, Array.map on older hosts).",
+    "Premiere: use app.project / app.project.activeSequence; call app.enableQE() for the qe DOM. No ES5+ features (no let/const, arrow functions, Array.map on older hosts). " +
+    "Media Encoder and Bridge (and any app whose own panel is not loaded) are reached through BridgeTalk from another connected app; set launch: true to start the app if it is closed.",
   inputSchema: {
     app: appParam,
     code: z.string().describe("ExtendScript function body"),
     wait_ms: waitParam,
     timeout_ms: z.number().int().positive().max(6 * 60 * 60_000).optional().describe("Hard limit for the whole script (default 30 min). Renders can set more."),
+    launch: z.boolean().optional().describe("Start the app if it is not running (only for apps reached through BridgeTalk, e.g. Media Encoder, Bridge). Default false."),
   },
-}, async ({ app, code, wait_ms, timeout_ms }) => {
+}, async ({ app, code, wait_ms, timeout_ms, launch }) => {
   const a = normApp(app);
   if (!a) return fail(`Unknown app "${app}"`);
-  try { return jobReply(await request({ type: "run", app: a, code, waitMs: wait_ms, timeoutMs: timeout_ms })); } catch (e) { return fail(e); }
+  try { return jobReply(await request({ type: "run", app: a, code, waitMs: wait_ms, timeoutMs: timeout_ms, launch })); } catch (e) { return fail(e); }
 });
 
 server.registerTool("job_result", {
@@ -525,7 +592,7 @@ async function ensurePanelInstalled() {
   await fs.cp(src, dest, { recursive: true });
   const { execFile } = await import("node:child_process");
   const run = (cmd, args) => new Promise((r) => execFile(cmd, args, () => r()));
-  for (const v of [9, 10, 11, 12, 13, 14, 15]) {
+  for (const v of [9, 10, 11, 12, 13, 14, 15, 16, 17]) {
     if (process.platform === "darwin") await run("defaults", ["write", `com.adobe.CSXS.${v}`, "PlayerDebugMode", "1"]);
     else await run("reg", ["add", `HKCU\\Software\\Adobe\\CSXS.${v}`, "/v", "PlayerDebugMode", "/t", "REG_SZ", "/d", "1", "/f"]);
   }
