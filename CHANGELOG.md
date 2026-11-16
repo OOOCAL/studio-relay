@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.1
+- Fixed text coming back from Media Encoder / Bridge with letters escaped (e.g. `encoder\u0048ost`): the serializer sent to other apps no longer uses a regular expression, which some hosts rewrite when they print a function back as source.
+
 ## 0.3.0
 - **Media Encoder and Bridge** support. Both are reached through BridgeTalk from any app that has the panel open (Premiere first, then After Effects, Photoshop…), and the panel is also offered to them directly.
 - **Relay for every app**: when an app's own panel is not loaded (for example a new Illustrator or InDesign version), scripts for it go through another connected app instead of failing.

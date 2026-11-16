@@ -1,6 +1,6 @@
 {
   "name": "studio-relay",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Local MCP server that lets Claude drive After Effects, Premiere Pro, Photoshop, Illustrator, InDesign, Audition, Media Encoder and Bridge through a CEP panel and BridgeTalk.",
   "type": "module",
   "main": "server.js",

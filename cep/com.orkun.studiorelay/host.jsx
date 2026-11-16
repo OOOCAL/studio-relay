@@ -3,11 +3,22 @@
 // JSON serializer that works in every ExtendScript host. It is also sent, as source,
 // to apps reached through BridgeTalk (Media Encoder, Bridge, apps without a panel).
 function __srStringify(v) {
-  function q(s) {
-    return '"' + String(s).replace(/[\\"\x00-\x1f]/g, function (c) {
-      var m = { "\\": "\\\\", '"': '\\"', "\n": "\\n", "\r": "\\r", "\t": "\\t", "\b": "\\b", "\f": "\\f" };
-      return m[c] || "\\u" + ("0000" + c.charCodeAt(0).toString(16)).slice(-4);
-    }) + '"';
+  // no regex here: this function is sent to other apps as source text, and some
+  // hosts rewrite regex escapes when they turn a function back into text
+  function q(str) {
+    str = String(str);
+    var o = '"';
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charAt(i), n = str.charCodeAt(i);
+      if (c === '"') o += '\\"';
+      else if (c === '\\') o += '\\\\';
+      else if (n === 10) o += '\\n';
+      else if (n === 13) o += '\\r';
+      else if (n === 9) o += '\\t';
+      else if (n < 32) o += '\\u' + ('0000' + n.toString(16)).slice(-4);
+      else o += c;
+    }
+    return o + '"';
   }
   function s(v, depth) {
     if (depth > 12) return '"[depth]"';

@@ -6,7 +6,7 @@
    outbox until the server has them, so a long render that ends during a reconnect
    is not lost. A script id is never run twice. */
 (function () {
-  var PANEL_VERSION = "0.3.0";
+  var PANEL_VERSION = "0.3.1";
   var PORT = 8765;
   var URL = "ws://127.0.0.1:" + PORT;
   var SILENCE_MS = 35000;   // no ping from the server for this long -> reconnect

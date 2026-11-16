@@ -21,7 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.3.1";
 const PORT = Number(process.env.STUDIO_RELAY_PORT || 8765);
 const HOST = "127.0.0.1";
 const DEFAULT_WAIT = Number(process.env.STUDIO_RELAY_WAIT_MS || 45_000);     // how long a tool call waits for an answer
